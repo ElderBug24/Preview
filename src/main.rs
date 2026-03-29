@@ -213,8 +213,8 @@ fn main() {
     let (w, h) = img.dimensions();
 
     if width == 0 || height == 0 {
-        width = 200;
-        height = h * 200 / w;
+        width = 128;
+        height = h * 128 / w;
     }
 
     let buffer = Buffer::from_file(img, width, height, filter);
