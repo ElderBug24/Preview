@@ -1,5 +1,6 @@
 # Preview
 This tool preview any image using braille characters and Floyd–Steinberg dithering (https://en.wikipedia.org/wiki/Floyd–Steinberg_dithering).
+It depends on my braille crate (https://github.com/ElderBug24/Braille). This crate requires the braille folder to be placed in the parent folder of this repository.
 Here is the help menu:
 
 Preview any image file
