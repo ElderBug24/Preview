@@ -1,4 +1,5 @@
 use std::env;
+use std::fmt;
 
 use braille::{BrailleCharUnOrdered, BrailleCharGridVector};
 
@@ -39,8 +40,8 @@ impl Buffer {
         return &mut self.data[y * self.width + x];
     }
 
-    pub fn from_file(img: image::DynamicImage, w: u32, h: u32, filter: FilterType) -> Self {
-        let img = img.resize_exact(w, h, filter).to_rgb8();
+    pub fn from_file(img: image::DynamicImage, w: u32, h: u32) -> Self {
+        let img = img.resize_exact(w, h, FilterType::Triangle).to_rgb8();
         let (w, h) = img.dimensions();
 
         let mut buf = Self::new(w as usize, h as usize);
@@ -54,9 +55,103 @@ impl Buffer {
 
         return buf;
     }
+
+    pub fn dither_pushback(&mut self, x: usize, y: usize, error: Vec3, dithering: &(&[((isize, usize), f32)], f32)) {
+        let error = error * dithering.1;
+
+        for ((x_, y_), k) in dithering.0.iter() {
+            let x = (x as isize + x_) as usize;
+            if x < self.width {
+                let y = y + y_;
+                if y < self.height {
+                    *self.get_mut(x, y) += error * k;
+                }
+            }
+        }
+    }
 }
 
-fn dither_img(mut img: Buffer) {
+const FLOYDSTEINBERG_DITHERING: (&[((isize, usize), f32)], f32) = (&[
+    ((1, 0), 7.0),
+    ((-1, 1), 3.0),
+    ((0, 1), 5.0),
+    ((1, 1), 1.0)
+], 1.0 / 16.0);
+const ATKINSON_DITHERING: (&[((isize, usize), f32)], f32) = (&[
+    ((1, 0), 1.0),
+    ((2, 0), 1.0),
+    ((-1, 1), 1.0),
+    ((0, 1), 1.0),
+    ((1, 1), 1.0),
+    ((0, 2), 1.0)
+], 1.0 / 8.0);
+const SIERRA1_DITHERING: (&[((isize, usize), f32)], f32) = (&[
+    ((1, 0), 5.0),
+    ((2, 0), 3.0),
+    ((-2, 1), 2.0),
+    ((-1, 1), 4.0),
+    ((0, 1), 5.0),
+    ((1, 1), 4.0),
+    ((2, 1), 2.0),
+    ((-1, 2), 2.0),
+    ((0, 2), 3.0),
+    ((1, 2), 2.0),
+], 1.0 / 32.0);
+const SIERRA2_DITHERING: (&[((isize, usize), f32)], f32) = (&[
+    ((1, 0), 4.0),
+    ((2, 0), 3.0),
+    ((-2, 1), 1.0),
+    ((-1, 1), 2.0),
+    ((0, 1), 3.0),
+    ((1, 1), 2.0),
+    ((2, 1), 1.0)
+], 1.0 / 16.0);
+const SIERRA3_DITHERING: (&[((isize, usize), f32)], f32) = (&[
+    ((1, 1), 2.0),
+    ((-1, 1), 1.0),
+    ((0, 1), 1.0)
+], 1.0 / 4.0);
+const STUCKI_DITHERING: (&[((isize, usize), f32)], f32) = (&[
+    ((1, 0), 8.0),
+    ((2, 0), 4.0),
+    ((-2, 1), 2.0),
+    ((-1, 1), 4.0),
+    ((0, 1), 8.0),
+    ((1, 1), 4.0),
+    ((2, 1), 2.0),
+    ((-2, 2), 1.0),
+    ((-1, 2), 2.0),
+    ((0, 2), 4.0),
+    ((1, 2), 2.0),
+    ((2, 2), 1.0),
+], 1.0 / 42.0);
+
+#[derive(Debug)]
+enum Dithering {
+    FloydSteinberg,
+    Atkinson,
+    Sierra1,
+    Sierra2,
+    Sierra3,
+    Stucki
+}
+
+impl fmt::Display for Dithering {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let name = match self {
+            Self::FloydSteinberg => "Floyd-Steinberg",
+            Self::Atkinson => "Atkinson",
+            Self::Sierra1 => "Sierra",
+            Self::Sierra2 => "Two-Row Sierra",
+            Self::Sierra3 => "Sierra Lite",
+            Self::Stucki => "Stucki"
+        };
+
+        return write!(formatter, "{}", name);
+    }
+}
+
+fn dither_img(mut img: Buffer, dithering: Dithering) {
     let (w, h) = img.dimensions();
 
     let mut array: BrailleCharGridVector<BrailleCharUnOrdered> = BrailleCharGridVector::new(w/2, h/4);
@@ -83,22 +178,16 @@ fn dither_img(mut img: Buffer) {
 
             let quant_error = oldpixel - newpixel;
 
-            let right = x + 1 < w;
-            let down  = y + 1 < h;
-            let left  = x > 0;
+            let dither = match dithering {
+                Dithering::FloydSteinberg => FLOYDSTEINBERG_DITHERING,
+                Dithering::Atkinson => ATKINSON_DITHERING,
+                Dithering::Sierra1 => SIERRA1_DITHERING,
+                Dithering::Sierra2 => SIERRA2_DITHERING,
+                Dithering::Sierra3 => SIERRA3_DITHERING,
+                Dithering::Stucki => STUCKI_DITHERING
+            };
 
-            if right {
-                *img.get_mut(x+1, y) += quant_error * 7.0/ 16.0;
-            }
-            if down {
-                if left {
-                    *img.get_mut(x-1, y+1) += quant_error * 3.0/ 16.0;
-                }
-                *img.get_mut(x, y+1) += quant_error * 5.0 / 16.0;
-                if right {
-                    *img.get_mut(x+1, y+1) += quant_error * 1.0/ 16.0;
-                }
-            }
+            img.dither_pushback(x, y, quant_error, &dither);
         }
     }
 
@@ -124,84 +213,59 @@ fn main() {
         println!("    -v, --verbose                     Use verbose output: display informations about the resizing");
         println!("Settings:");
         println!("    [int]x[int]                       Specify output dimensions");
-        println!("    [filtertype]                      Specify filter type for resizing:");
-        println!("        'n' | 'nearest' | 'near'          Nearest");
-        println!("        't' | 'triangle'                  Triangle");
-        println!("        'c' | 'catmullrom'                CatmullRom");
-        println!("        'g' | 'gaussian' | 'gauss'        Gaussian");
-        println!("        'l' | 'lanczos3' | 'lanczos'      Lanczos3");
+        println!("    [int]                             Specify output width: the height gets scaled accordingly");
+        println!("    [dithering algorithm]             Specify the dithering algorithm used:");
+        println!("        'f' | 'floydsteinberg'            Floyd-Steinberg");
+        println!("        'a' | 'atkinson'                  Atkinson -- the default");
+        println!("        's' | 's1' | 'sierra | 'sierra1'  Sierra");
+        println!("        's2' | 'tworowsierra' | 'sierra2' Two-Row Sierra");
+        println!("        's3' | 'sierralite' | 'sierra3'   Sierra Lite");
+        println!("        'stucki'                          Stucki");
 
         return;
     }
 
-    let mut filter = FilterType::Nearest;
+    let mut dithering = Dithering::Atkinson;
     let mut width = 0;
     let mut height = 0;
 
-    let mut seen_filter = false;
-    let mut seen_dims = false;
     let mut verbose = false;
 
-    for arg in args.take(3) {
+    for arg in args {
         let arg = arg.to_lowercase();
 
         if let Some((a, b)) = arg.split_once('x') {
-            if seen_dims {
-                eprintln!("Error: dimensions already provided");
-                continue;
-            }
-
             match (a.parse::<u32>(), b.parse::<u32>()) {
                 (Ok(w), Ok(h)) => {
                     width = w;
                     height = h;
-                    seen_dims = true;
                 }
                 _ => eprintln!("Error: '{}' is not valid [int]x[int] format", arg),
             }
         }
+        else if let Ok(w) = arg.parse::<u32>() {
+            width = w;
+        }
         else if arg == "-v" || arg == "--verbose" {
             verbose = true;
         }
-        else if arg == "nearest" || arg == "near" || arg == "n" {
-            if seen_filter {
-                eprintln!("Error: filter type already set");
-            } else {
-                filter = FilterType::Nearest;
-                seen_filter = true;
-            }
+        else if arg == "floydsteinberg"  || arg == "f" {
+            dithering = Dithering::FloydSteinberg;
         }
-        else if arg == "triangle" || arg == "t" {
-            if seen_filter {
-                eprintln!("Error: filter type already set");
-            } else {
-                filter = FilterType::Triangle;
-                seen_filter = true;
-            }
+        else if arg == "atkinson"  || arg == "a" {
+            dithering = Dithering::Atkinson;
         }
-        else if arg == "catmullrom" || arg == "c" {
-            if seen_filter {
-                eprintln!("Error: filter type already set");
-            } else {
-                filter = FilterType::CatmullRom;
-                seen_filter = true;
-            }
+        else if arg == "s" || arg == "s1" || arg == "sierra" || arg == "sierra1" {
+            dithering = Dithering::Sierra1;
         }
-        else if arg == "gaussian" || arg == "gauss" || arg == "g" {
-            if seen_filter {
-                eprintln!("Error: filter type already set");
-            } else {
-                filter = FilterType::Gaussian;
-                seen_filter = true;
-            }
+        else if arg == "s2" || arg == "tworowsierra" || arg == "sierra2" {
+            dithering = Dithering::Sierra2;
         }
-        else if arg == "lanczos3" || arg == "lanczos" || arg == "l" {
-            if seen_filter {
-                eprintln!("Error: filter type already set");
-            } else {
-                filter = FilterType::Lanczos3;
-                seen_filter = true;
-            }
+        else if arg == "s3" || arg == "sierralite" || arg == "sierra3" {
+            dithering = Dithering::Sierra3;
+        }
+        else if arg == "stucki" {
+            dithering = Dithering::Stucki;
         }
 
         else {
@@ -212,17 +276,19 @@ fn main() {
     let img = image::open(&file).expect("Missing file name");
     let (w, h) = img.dimensions();
 
-    if width == 0 || height == 0 {
-        width = 128;
-        height = h * 128 / w;
+    if height == 0 {
+        if width == 0 {
+            width = 128;
+        }
+        height = h * width / w;
     }
 
-    let buffer = Buffer::from_file(img, width, height, filter);
+    let buffer = Buffer::from_file(img, width, height);
 
     if verbose {
-        println!("Resizing image from {} x {} to {} x {} using {:?} filtering", w, h, width, height, filter);
+        println!("Resizing image from {} x {} to {} x {} and dithering using the {} algorithm", w, h, width, height, dithering);
     }
 
-    dither_img(buffer);
+    dither_img(buffer, dithering);
 }
 
