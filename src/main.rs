@@ -90,12 +90,20 @@ Preview any image file
 Usage: preview [OPTIONS]
 Options:
     -c, --color                       Colorize the image using ANSI escape codes
-    --only-color                      Colorize the image using ANSI escape codes, replacing all characters with ⣿
+    -C, --color-only                  Colorize the image using ANSI escape codes, replacing all characters with ⣿
+    -b, --blur-color [VALUE]          Blurs the image's colors; value controls image flattening level
+    -B, --blur [VALUE]                Blurs the image; value controls image flattening level
     -h, --help                        Print this help message
     -v, --verbose                     Use verbose output
     [FILENAME]                        Specify input filename
     [WIDTH]x[HEIGHT]                  Specify output dimensions
     [WIDTH]                           Specify output width; height is scaled proportionally";
+
+enum ExpectedArgument {
+    None,
+    Blur,
+    BlurColor
+}
 
 fn main() {
     let args = env::args().skip(1);
@@ -105,38 +113,73 @@ fn main() {
 
     let mut path = None;
     let mut color = 0;
+    let mut blur = 0;
+    let mut blur_color = 0;
     let mut verbose = false;
     let mut help = false;
 
-    for arg in args {
-        if let Some((a, b)) = arg.split_once('x') {
-            match (a.parse::<u32>(), b.parse::<u32>()) {
-                (Ok(w), Ok(h)) => {
-                    width = w;
-                    height = h;
-                }
-                _ => println!("Error: '{}' is not a valid dimension. Expected format: [WIDTH]x[HEIGHT]", arg),
-            }
-        } else if let Ok(w) = arg.parse::<u32>() {
-            width = w;
-        } else if arg == "-c" || arg == "--color" {
-            color = 1;
-        } else if arg == "-C" || arg == "--only-color" {
-            color = 2;
-        } else if arg == "-v" || arg == "--verbose" {
-            verbose = true;
-        } else if arg == "-h" || arg == "--help" {
-            help = true;
-        } else {
-            let mut p = PathBuf::new();
-            p.push(&arg);
+    let mut expected = ExpectedArgument::None;
 
-            if p.is_file() {
-                path = Some(p);
-            } else {
-                println!("Error: '{}' is invalid", arg);
+    for arg in args {
+        match expected {
+                ExpectedArgument::None => {
+                if let Some((a, b)) = arg.split_once('x') {
+                    match (a.parse::<u32>(), b.parse::<u32>()) {
+                        (Ok(w), Ok(h)) => {
+                            width = w;
+                            height = h;
+                        }
+                        _ => {
+                            let mut p = PathBuf::new();
+                            p.push(&arg);
+
+                            if p.is_file() {
+                                path = Some(p);
+                            } else {
+                                println!("Error: '{}' is invalid", arg);
+                            }
+                        },
+                    }
+                } else if let Ok(w) = arg.parse::<u32>() {
+                    width = w;
+                } else if arg == "-c" || arg == "--color" {
+                    color = 1;
+                } else if arg == "-C" || arg == "--color-only" {
+                    color = 2;
+                } else if arg == "-B" || arg == "--blur" {
+                    expected = ExpectedArgument::Blur;
+                } else if arg == "-b" || arg == "--blur-color" {
+                    expected = ExpectedArgument::BlurColor;
+                } else if arg == "-v" || arg == "--verbose" {
+                    verbose = true;
+                } else if arg == "-h" || arg == "--help" {
+                    help = true;
+                } else {
+                    let mut p = PathBuf::new();
+                    p.push(&arg);
+
+                    if p.is_file() {
+                        path = Some(p);
+                    } else {
+                        println!("Error: '{}' is invalid", arg);
+                    }
+                }
+            },
+            ExpectedArgument::Blur => {
+                match arg.parse::<u8>() {
+                    Ok(sigma) => blur = sigma,
+                    Err(e) => eprintln!("{} {}", e, arg)
+                }
+                expected = ExpectedArgument::None;
+            },
+            ExpectedArgument::BlurColor => {
+                match arg.parse::<u8>() {
+                    Ok(sigma) => blur_color = sigma,
+                    Err(e) => eprintln!("{} {}", e, arg)
+                }
+                expected = ExpectedArgument::None;
             }
-        }
+        };
     }
 
     if help {
@@ -145,16 +188,28 @@ fn main() {
         return;
     }
 
-    let img = image::open(&path.expect("Error: Missing input file")).expect("Error: Could not open file");
+    let mut img = image::open(&path.expect("Error: Missing input file")).expect("Error: Could not open file");
     let (w, h) = img.dimensions();
 
     if height == 0 {
         if width == 0 {
-            width = 128;
+            width = 160;
         }
         height = h * width / w;
     }
-    let img2 = img.resize_exact(width, height, FilterType::Nearest).to_rgb8();
+
+    let mut img2 = img.resize_exact(width, height, FilterType::Nearest);
+
+    if blur_color == 0 {
+        blur_color = blur;
+    }
+    if blur > 0 {
+        img = img.fast_blur(blur as f32);
+    }
+    if blur_color > 0 {
+        img2 = img2.fast_blur(blur_color as f32);
+    }
+    let img2 = img2.to_rgb8();
 
     let mut buffer = Buffer::from_file(img, width, height);
 
@@ -248,9 +303,18 @@ fn main() {
 
     if verbose {
         if color < 2 {
-            write!(out, "The image was resized from {} x {} to {} x {}{}.", w, h, width, height, if color > 0 { " and colored" } else { "" }).unwrap();
+            write!(out, "Resizing from {} x {} to {} x {}", w, h, width, height).unwrap();
+            if color > 0 {
+                out.push_str("\n + Coloring");
+            }
         } else {
-            write!(out, "The color from the image was rendered at a size of {} x {}.", width, height).unwrap();
+            write!(out, "The color from the image was rendered at a size of {} x {}", width, height).unwrap();
+        }
+        if blur > 0 {
+            write!(out, "\n + Blurring: {}", blur).unwrap();
+        }
+        if blur_color > 0 {
+            write!(out, "\n + Blurring color {}", blur_color).unwrap();
         }
     }
 
