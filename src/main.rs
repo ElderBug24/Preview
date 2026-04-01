@@ -1,10 +1,13 @@
 use std::env;
 use std::io::{self, Write};
+use std::fmt::Write as Write_;
+use std::path::PathBuf;
 
-use braille::{BrailleChar, BrailleCharUnOrdered, BrailleCharGridVector};
+use braille::{BrailleCharUnOrdered, BrailleCharGridVector};
 
 use glam::Vec3;
-use image::{imageops::FilterType, GenericImageView};
+use image::{imageops::FilterType, GenericImageView, SubImage, Rgb};
+use owo_colors::OwoColorize;
 
 struct Buffer {
     pub width: usize,
@@ -13,10 +16,10 @@ struct Buffer {
 }
 
 impl Buffer {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn _new(width: usize, height: usize) -> Self {
         return Self {
-            width,
-            height,
+            width: width,
+            height: height,
             data: vec![Vec3::ZERO; width * height]
         };
     }
@@ -31,7 +34,7 @@ impl Buffer {
     }
 
     #[inline]
-    pub fn set(&mut self, x: usize, y: usize, value: Vec3) {
+    pub fn _set(&mut self, x: usize, y: usize, value: Vec3) {
         self.data[y * self.width + x] = value;
     }
 
@@ -41,63 +44,108 @@ impl Buffer {
     }
 
     pub fn from_file(img: image::DynamicImage, w: u32, h: u32) -> Self {
-        let img = img.resize_exact(w, h, FilterType::Triangle).into_rgb8();
-        let (w, h) = img.dimensions();
+        let img = img.resize_exact(w, h, FilterType::Triangle).into_rgb32f();
 
-        let mut buf = Self::new(w as usize, h as usize);
+        let (w, h) = img.dimensions();
+        let (w, h) = (w as usize, h as usize);
 
         let flat = img.as_flat_samples();
         let bytes = flat.samples;
+        let mut data = unsafe { std::mem::transmute::<Vec<f32>, Vec<Vec3>>(bytes.to_vec()) };
+        unsafe { data.set_len(w * h) };
 
-        for y in 0..h as usize {
-            for x in 0..w as usize {
-                let i = (y * w as usize + x) * 3;
-                let r = bytes[i] as f32;
-                let g = bytes[i + 1] as f32;
-                let b = bytes[i + 2] as f32;
-
-                buf.set(x, y, Vec3::new(r, g, b));
-            }
-        }
+        let buf = Self {
+            width: w,
+            height: h,
+            data: data
+        };
 
         return buf;
     }
 }
 
-fn main() {
-    let mut args = env::args().skip(1);
+fn average_color(sub: &SubImage<&image::RgbImage>) -> (u8, u8, u8) {
+    let mut sum_r = 0u16;
+    let mut sum_g = 0u16;
+    let mut sum_b = 0u16;
+    let mut count = 0u16;
 
-    let file = args.next().expect("Missing input argument");
+    for (_, _, pixel) in sub.pixels() {
+        let Rgb([r, g, b]) = pixel;
+        sum_r += r as u16;
+        sum_g += g as u16;
+        sum_b += b as u16;
+        count += 1;
+    }
+
+    return (
+        (sum_r / count) as u8,
+        (sum_g / count) as u8,
+        (sum_b / count) as u8,
+    );
+}
+
+const HELP: &str = "\
+Preview any image file
+Usage: preview [OPTIONS]
+Options:
+    -c, --color                       Colorize the image using ANSI escape codes
+    --only-color                      Colorize the image using ANSI escape codes, replacing all characters with ⣿
+    -h, --help                        Print this help message
+    -v, --verbose                     Use verbose output
+    [FILENAME]                        Specify input filename
+    [WIDTH]x[HEIGHT]                  Specify output dimensions
+    [WIDTH]                           Specify output width; height is scaled proportionally";
+
+fn main() {
+    let args = env::args().skip(1);
 
     let mut width = 0;
     let mut height = 0;
 
+    let mut path = None;
+    let mut color = 0;
     let mut verbose = false;
     let mut help = false;
 
     for arg in args {
-        let arg = arg.to_lowercase();
-
         if let Some((a, b)) = arg.split_once('x') {
             match (a.parse::<u32>(), b.parse::<u32>()) {
                 (Ok(w), Ok(h)) => {
                     width = w;
                     height = h;
                 }
-                _ => eprintln!("Error: '{}' is not valid [int]x[int] format", arg),
+                _ => println!("Error: '{}' is not a valid dimension. Expected format: [WIDTH]x[HEIGHT]", arg),
             }
         } else if let Ok(w) = arg.parse::<u32>() {
             width = w;
-        } else if arg == "-h" || arg == "--help" {
-            help = true;
+        } else if arg == "-c" || arg == "--color" {
+            color = 1;
+        } else if arg == "-C" || arg == "--only-color" {
+            color = 2;
         } else if arg == "-v" || arg == "--verbose" {
             verbose = true;
+        } else if arg == "-h" || arg == "--help" {
+            help = true;
         } else {
-            eprintln!("Error: '{}' is invalid", arg);
+            let mut p = PathBuf::new();
+            p.push(&arg);
+
+            if p.is_file() {
+                path = Some(p);
+            } else {
+                println!("Error: '{}' is invalid", arg);
+            }
         }
     }
 
-    let img = image::open(&file).expect("Missing file name");
+    if help {
+        println!("{}", HELP);
+
+        return;
+    }
+
+    let img = image::open(&path.expect("Error: Missing input file")).expect("Error: Could not open file");
     let (w, h) = img.dimensions();
 
     if height == 0 {
@@ -106,21 +154,9 @@ fn main() {
         }
         height = h * width / w;
     }
+    let img2 = img.resize_exact(width, height, FilterType::Nearest).to_rgb8();
 
     let mut buffer = Buffer::from_file(img, width, height);
-
-    if help {
-        println!("Preview any image file");
-        println!("Usage: preview [FILENAME] [OPTIONS] [SETTINGS]");
-        println!("Options:");
-        println!("    -h, --help                        Print help");
-        println!("    -v, --verbose                     Use verbose output: display informations about the resizing");
-        println!("Settings:");
-        println!("    [int]x[int]                       Specify output dimensions");
-        println!("    [int]                             Specify output width: the height gets scaled accordingly");
-
-        return;
-    }
 
     let (w, h) = buffer.dimensions();
 
@@ -136,21 +172,18 @@ fn main() {
         for y__ in 0..4 {
             let y = y_ * 4 + y__;
             for x in 0..w_ {
-                let oldpixel = buffer.get(x, y).clamp(Vec3::ZERO, Vec3::splat(255.0));
+                let oldpixel = buffer.get(x, y).clamp(Vec3::ZERO, Vec3::splat(1.0));
 
                 let (b, nl) = match oldpixel.element_sum() {
-                    0.0..381.0 => (false, 0.0),
-                    _ => (true, 255.0)
+                    0.0..1.5 => (false, 0.0),
+                    _ => (true, 1.0)
                 };
-                let newpixel = Vec3::splat(nl);
 
                 grid.set_unchecked(x, y, b);
 
                 array[x + y * w_] = b;
 
-                let mut quant_error = oldpixel - newpixel;
-
-                quant_error /= 8.0;
+                let quant_error = (oldpixel - nl) / 8.0;
 
                 let right = x + 1 < buffer.width;
                 let right2 = x + 2 < buffer.width;
@@ -193,13 +226,32 @@ fn main() {
 
             let char = BrailleCharUnOrdered::from_array_unordered(arr);
 
-            out.push(char.char());
+            match color {
+                0 => write!(out, "{}", char.char()).unwrap(),
+                1 => {
+                    let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
+                    let (r, g, b) = average_color(&view);
+
+                    write!(out, "{}", char.char().truecolor(r, g, b)).unwrap();
+                },
+                2 => {
+                    let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
+                    let (r, g, b) = average_color(&view);
+
+                    write!(out, "{}", BrailleCharUnOrdered::FULL.char().truecolor(r, g, b)).unwrap();
+                },
+                _ => unreachable!()
+            }
         }
         out.push('\n');
     }
 
     if verbose {
-        out.push_str(&format!("The image was resized from {} x {} to {} x {}", w, h, width, height))
+        if color < 2 {
+            write!(out, "The image was resized from {} x {} to {} x {}{}.", w, h, width, height, if color > 0 { " and colored" } else { "" }).unwrap();
+        } else {
+            write!(out, "The color from the image was rendered at a size of {} x {}.", width, height).unwrap();
+        }
     }
 
     io::stdout().lock().write_all(out.as_bytes()).unwrap();
