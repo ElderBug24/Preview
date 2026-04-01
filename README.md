@@ -4,64 +4,23 @@ It depends on my braille crate (https://github.com/ElderBug24/Braille). This cra
 Here is the help menu:
 
 Preview any image file
-
-Usage: preview [FILENAME] [OPTIONS] [SETTINGS]
-
+Usage: preview [OPTIONS]
 Options:
 
-    -h, --help                        Print help
-    -v, --verbose                     Use verbose output: display informations about the resizing
-Settings:
-
-    [int]x[int]                       Specify output dimensions
-    [int]                             Specify output width: the height gets scaled accordingly
-    [dithering algorithm]             Specify the dithering algorithm used:
-        'f' | 'floydsteinberg'            Floyd-Steinberg
-        'a' | 'atkinson'                  Atkinson -- the default
-        's' | 's1' | 'sierra | 'sierra1'  Sierra
-        's2' | 'tworowsierra' | 'sierra2' Two-Row Sierra
-        's3' | 'sierralite' | 'sierra3'   Sierra Lite
-        'stucki'                          Stuck
+    -c, --color                       Colorize the image using ANSI escape codes
+    -C, --color-only                  Colorize the image using ANSI escape codes, replacing all characters with ⣿
+    -b, --blur-color [VALUE]          Blurs the image's colors; value controls image flattening level
+    -B, --blur [VALUE]                Blurs the image; value controls image flattening level
+    -h, --help                        Print this help message
+    -v, --verbose                     Use verbose output
+    [FILENAME]                        Specify input filename
+    [WIDTH]x[HEIGHT]                  Specify output dimensions
+    [WIDTH]                           Specify output width; height is scaled proportionally
 
 Here are example outputs:
 
 ![Alt text](./bunny.jpg?raw=true)
 
-Resizing image from 736 x 739 to 128 x 128 and dithering using the Floyd-Steinberg algorithm
-⢌⠢⡣⡣⢕⢵⢱⢣⢣⠣⡱⠨⡂⢅⢣⢱⢨⢢⢑⢌⠢⡊⡪⡂⡪⢐⣴⣟⣯⡳⣽⣻⢷⡌⡢⢂⠢⡳⡇⢂⢂⢂⢢⢪⠪⡪⠪⣊⢢⢑⢜⢨⢊⢪⡑⠅⡕⡕⡜⡸⡐⡅⡎⡆
-⡢⣣⢣⡣⡳⡱⡑⡅⢕⠱⡨⡃⡪⡐⢜⢢⢱⢘⢔⢐⠅⢕⢔⢑⢬⡿⣽⣺⣺⢺⣺⡺⣯⢿⡌⢆⢣⡫⡇⡢⠢⡪⣊⠪⡨⡘⢌⠎⢆⢇⡇⡗⡵⡕⡝⢌⢆⢣⢱⢸⢸⡸⣜⢜
-⢜⢘⠜⢕⠕⡕⢅⠕⢅⢇⠪⡐⠔⡨⢐⡐⢌⢊⠆⡢⡑⠅⢆⢵⢿⣽⣳⣳⢽⢵⡳⣯⢯⣟⣷⢑⣜⣞⠇⡌⡪⠰⡐⡱⢐⢜⢔⢍⠎⡎⡎⢮⢱⢱⢹⢸⢪⢊⢎⢎⢧⢳⡱⡱
-⢊⢎⠪⠢⡑⡱⢡⢊⢐⢄⠕⡨⠨⢐⢐⢈⠂⢅⢂⠢⠨⢈⠂⣾⡿⣞⣗⡯⡯⣟⡾⡽⣯⢷⣻⢿⣿⡯⣷⠐⠌⡂⡂⡊⡐⢜⠌⢆⠇⢎⢜⢐⠅⢇⢊⢎⢌⢎⡢⡱⢱⡓⡝⡜
-⢂⠢⡑⡑⡐⢌⠪⡨⡐⡐⢐⠨⠨⡂⡂⡂⠌⡂⡢⠠⠡⠂⡅⣿⣻⣽⣳⢯⢯⢷⣻⢽⡯⣿⣽⣻⣷⣻⣽⣇⢂⢂⢂⢂⠎⡪⡘⠔⢅⢅⠢⠡⡑⣑⢌⠎⡎⡎⡆⡇⡣⡪⡪⡪
-⡑⢌⠔⡐⡨⠠⢑⢐⢐⠄⠅⡂⠡⢐⠐⡄⠅⡂⡪⢐⠁⠅⡂⣿⣳⣳⣳⣫⡳⣝⢮⢯⢯⢷⣻⣞⣷⣟⣾⣟⣇⠔⡐⡐⢌⢐⠨⢈⢐⢐⠅⠕⢌⢆⢕⠨⡊⡎⡜⢜⢌⢎⢎⠪
-⠌⠄⠕⡨⡐⢌⢐⢐⢐⠌⠢⡊⡐⠄⠌⠄⡑⡐⠌⠄⠅⡅⣕⣞⡞⡮⢮⢲⢹⢜⢵⡫⣫⢯⢞⡾⣽⣻⢾⣻⡿⣧⣂⢊⢐⢐⠨⠠⢀⠂⠌⢊⠎⡎⡪⢪⠸⡐⢬⢑⢑⢢⢑⠅
-⢘⠌⡊⠔⡨⢐⢐⢅⣢⣨⣨⣂⣅⣣⣑⣨⣐⣨⣨⣨⣢⡾⣞⢷⡹⡸⡑⡕⢕⢕⢇⢯⡪⡳⣝⢾⢵⣻⣻⢯⣿⣻⢿⣶⣔⢐⠡⡑⡐⡨⢐⢐⢐⢈⢊⠪⣊⠪⡒⢅⢣⠢⡑⡅
-⢂⠢⠊⠔⢰⡽⣿⡽⣯⡿⣽⣟⡿⣯⢿⢯⣟⡽⣺⣺⢽⢽⣝⢵⢑⢌⢊⠐⠀⢘⢜⢜⡜⡝⡼⣕⢯⡺⡺⡽⣺⡺⡽⣺⡻⣷⣧⣌⡂⡊⠔⡐⡐⡐⠄⠅⡂⠱⡘⢌⠢⡃⡣⡊
-⢐⠨⠨⠨⠨⣯⣳⢯⣗⣟⢷⣫⡯⣯⣫⣗⢧⢯⣺⢾⣝⢧⡳⡱⡑⡅⡢⢁⠀⡪⡪⡣⡣⡫⣪⢪⢪⢪⢣⡫⡎⣎⢧⢳⡹⡪⣞⢯⣿⢿⣮⣆⡕⢌⠪⡐⡌⡪⡐⡅⢇⠪⡐⡈
-⠢⡊⢌⠔⡁⡑⠯⠯⡯⣿⣽⢾⣽⣞⣷⢽⡽⡵⣯⢳⣓⢗⡝⡜⣜⢮⡪⣎⢖⡕⡵⣱⢹⢸⢸⠸⡘⡌⢆⢇⢇⢇⢇⢧⡫⣞⢮⣫⢞⡿⣝⣟⢿⣶⣵⡈⡂⠢⠨⡈⠌⢊⠆⢕
-⢑⠅⠕⡑⠔⠌⢔⢐⠄⡑⡉⡛⢺⢳⣯⢿⡽⣽⡺⣱⢕⡝⡼⡸⣪⢗⡝⣎⢇⢇⢇⢇⢕⢕⠕⡅⡕⡌⡢⢣⢪⢪⢪⣣⡳⣕⢯⢎⡛⠺⠽⢮⣳⢝⡾⣷⠈⠌⡂⢂⢁⠂⠌⢆
-⢐⢈⢂⠢⡁⠣⡁⡂⢅⢂⠢⢊⠔⡸⣿⡿⣽⡣⡗⣇⢗⢕⡕⢝⢎⢧⢫⢪⢪⢪⢎⢇⢇⢇⢇⢇⢎⢌⢜⢰⢱⡱⣕⢵⡹⣪⢯⢯⢖⣕⠨⢈⠓⠍⣑⣽⣈⢐⠐⡐⡐⡈⢌⠐
-⢐⢐⢐⠐⠌⠌⡂⡊⠔⡠⢑⢐⠅⡪⡸⣹⢮⢳⡹⡢⡫⡎⣎⢇⢗⢕⡕⡇⡇⡗⡕⡕⡕⡕⡽⡸⡄⡕⢅⡣⣣⡣⡳⡵⣝⢮⢯⢯⣻⢞⣷⢴⢥⣑⡼⡫⡂⡂⡅⢂⢐⠀⡂⠌
-⢐⠐⠄⠅⠅⠅⡂⠄⠅⢂⢐⢐⠨⢂⢕⢗⣏⢇⢇⢣⡓⡕⢥⢣⢫⢪⡪⡪⢎⡎⣎⢎⢎⢎⢎⢮⢪⢐⢌⢎⢖⢭⡫⣞⢮⢯⢯⣿⢽⡽⣺⢯⡻⣪⠏⢌⠐⠄⡂⢂⠔⢐⢀⢂
-⠠⠡⠡⠡⡑⡐⠠⠡⠨⠐⠠⢂⢌⠢⡣⡻⡜⣎⢪⢒⢇⢏⢺⢸⢸⢱⢱⡱⡣⡣⡣⣇⢗⡵⡝⡎⡖⡢⡕⣕⢝⢮⣺⢵⢯⢯⣟⢾⢯⡯⡷⢝⡊⠡⢅⠢⠡⢁⠂⡂⠌⡐⠄⡂
-⠨⢊⠨⢈⢐⠨⠨⡈⠢⡁⢅⢂⠢⢑⠬⣫⢺⢢⢣⢣⠣⡝⡸⡸⡜⡕⡵⡱⡕⣝⢞⢮⢳⢝⢎⢇⢇⢗⢕⢵⡹⡽⣺⡽⣽⣱⢱⢽⣻⠨⢐⠠⠨⠐⢄⠂⠌⡐⠔⡈⡐⠨⢐⠐
-⠌⡂⠌⡂⡂⠅⢅⢐⠡⡐⡐⠄⡅⢕⢼⣝⢮⢣⢣⡣⡫⡪⡜⡮⡺⡜⣎⢧⢫⢎⢯⣪⢳⢕⢗⢵⡹⡜⣕⢧⡳⣫⣗⢯⣖⠕⡵⢽⡳⡇⠂⠌⠄⡑⢐⠨⠐⠠⢁⠐⠄⠕⠠⠡
-⠨⢐⢁⠢⠨⠨⢐⠄⢅⢂⠪⢐⠌⣪⢗⡵⡳⣙⢎⠎⣎⢮⡪⡳⣹⢪⡺⣪⢳⡹⡕⡮⣳⢹⡪⣇⢗⣝⢮⡳⣝⣗⣗⢯⡪⡪⢪⣻⣝⡇⠅⠅⢂⠂⢂⠂⠡⢁⢂⠡⠁⠅⠡⢁
-⠨⢐⠐⠌⢄⢑⢐⠨⡐⡐⠌⡂⢅⢗⢕⢝⠜⡌⣆⢯⢮⡣⡯⢮⡳⣝⢞⢎⡗⣕⢯⣺⣪⡳⣝⢼⢕⡵⡽⣝⣞⣞⢮⢗⢵⡱⡑⡵⣳⣇⡂⠅⡂⢌⠐⢌⢊⢐⠠⡂⢅⠊⠌⠄
-⠨⠐⠌⠌⡐⠄⡑⠨⠠⠂⡅⢌⠢⣗⣧⣗⢷⢽⡺⣝⡵⣫⢞⣗⣝⢮⡳⣝⢮⡳⡳⣕⢵⢝⢮⡳⣝⢞⢮⣳⡳⣳⢝⡽⣕⣿⣦⢙⠮⣷⡨⠨⠐⠠⠑⠄⠕⡐⠡⢂⠢⠡⠡⠁
-⠨⡨⠨⢂⠂⠅⢌⢬⠨⡂⡊⠂⢝⣽⣞⡾⣫⣗⢯⣳⢽⢵⡻⣼⡪⣗⡽⡼⢵⢝⣝⢮⡫⡯⡳⣝⢮⣫⡳⣕⢯⡳⣫⢾⡽⣿⢾⣷⣵⣷⣑⢅⠊⠌⢌⢊⠌⠢⡑⠔⡡⢑⠨⡀
-⢑⡐⠌⢄⠢⢊⠄⡊⡪⠪⠪⡃⣗⡷⣳⡯⣗⣗⢯⣞⣵⣻⡺⡵⣝⡞⣞⢮⣫⡳⣕⢯⢞⡽⣝⢮⡳⡵⣝⣞⢗⡽⣳⣻⢿⣽⢿⣻⣿⡷⡕⠜⠨⠍⠪⠨⢊⢅⠣⡑⠕⡑⢅⠣
-⡒⠜⠜⠜⢜⠢⡣⡓⢜⢪⢣⢣⢗⣟⣗⣟⣞⡮⣗⣗⢗⣗⢽⡺⣺⡺⡵⡳⡳⣝⢮⢳⢝⣞⢵⡫⣞⣝⢮⣞⡽⣽⢽⣽⢿⣽⢿⣟⣷⣿⢝⢍⢎⠣⡹⢘⢜⠰⡱⡘⠜⠌⢆⠇
-⠮⠭⡫⢝⢎⠧⡳⠜⡎⠮⡪⢮⢫⣞⣗⣗⢷⢽⡺⡮⡯⣺⢵⣫⢗⡯⣳⡹⣹⢪⢮⢳⢝⢮⡳⣝⢮⣺⢵⣳⢯⡿⣽⢯⣿⡽⣿⣽⣯⡿⣯⢪⡲⡱⣱⢱⡪⣪⡪⣪⣣⡫⡮⣪
-⡮⡮⡶⡵⣖⣗⣖⣗⣞⡮⣖⣗⣗⣗⢷⢽⢽⢽⡺⣝⢾⣹⢵⣳⡫⣯⢺⢪⢪⢺⢸⢕⡽⢵⡹⣪⢗⡽⡽⣞⣯⢿⡽⣻⣞⣯⡿⣾⢷⡿⡵⡳⣝⢮⣳⡳⣝⣞⢮⣳⢵⢽⢝⣮
-⣯⢯⡾⣽⣺⣺⣺⣺⣺⢮⣗⣗⢷⣕⢯⡫⡯⣳⢽⢵⡻⣪⣗⣗⢽⡪⡇⡇⡣⡣⣓⢗⡝⡵⣝⢞⡽⣝⣯⢿⣺⢯⢯⣷⣻⣞⣯⣟⣯⢿⡹⡝⣎⢯⡪⣞⢵⢽⡹⡼⣝⢝⣝⢮
-⢽⡹⡽⣕⢯⢳⢝⡞⡮⣫⢞⡎⡯⡺⡕⣯⡫⡞⡮⡳⡽⣕⣗⣗⢽⢪⢱⠈⢆⢇⢇⢧⢫⡺⣪⢯⣞⣟⠾⡝⡮⣫⣗⣷⣻⣾⡯⣿⢝⣗⢽⡹⣪⡳⣝⢮⡳⡳⡝⡞⣎⢯⢮⡳
-⡳⣝⢮⣪⡳⣝⢵⢝⢝⣜⢵⡱⡝⡎⣞⢮⡺⣝⢮⡫⣞⢮⡺⣮⡳⡑⡁⢊⢜⢸⢸⡸⡵⣝⢮⢷⣳⢱⢹⢸⢯⣻⢾⣻⣯⣷⣿⣯⣗⡗⡗⡏⡮⡺⡼⡵⡽⡮⣳⢽⣺⣺⣺⡺
-⣞⣮⣳⡳⣝⢮⡳⣝⢵⡣⣗⢝⡎⣏⢮⡺⣪⢞⢮⣺⡪⣗⣟⣞⢮⢂⠀⠢⡪⡪⡎⣞⢞⢾⡽⣿⣳⠡⡪⡪⡯⣻⣻⢿⡽⣟⣿⣻⣯⣷⠭⡫⢮⢳⢝⢮⢳⢵⣝⣕⢗⢮⡲⣝
-⢪⢪⡚⣞⢮⡳⣝⢎⢗⠝⢜⢌⠦⡪⢳⢝⣗⡯⣗⡷⣽⣺⣺⣺⣕⠂⠀⢘⢌⢎⢞⡮⡿⣽⡽⣟⣯⠇⡪⢪⢺⢽⣺⢿⣟⣿⣽⣯⡿⡽⡹⡸⣑⢹⡘⡭⡹⣱⣓⢝⣝⡝⣝⢮
-⢵⡲⣜⣌⢧⣫⢢⡣⣑⢍⢎⢖⢕⢊⢮⢯⡷⣻⣳⢯⣷⣻⣺⣗⡗⡈⠀⢠⠣⡃⢇⢏⡯⣷⣻⣿⡻⡔⣀⡢⡘⢜⠎⡯⣛⢞⢞⢗⢯⢮⢯⢽⢽⢵⢟⡾⡼⢴⡮⣞⡼⣞⣯⣟
-
-Resizing image from 736 x 739 to 128 x 128 and dithering using the Atkinson algorithm
 ⠐⣂⠶⣑⠲⡜⡖⡓⢎⡔⢂⡒⡀⠆⢚⠤⡒⡔⢢⠐⣄⠒⠆⡆⠰⢠⣶⣿⣳⣏⡾⣿⣷⣄⠢⡐⢠⠞⣇⠠⠀⢄⡰⢲⢘⠲⢌⠲⣀⢒⡐⢢⡘⢤⡃⠆⡘⠖⡄⠳⣄⠲⣰⢂
 ⢳⡌⣶⣡⠛⡜⢆⡩⢂⠜⢢⠑⡌⡘⠌⠶⡑⡜⡠⠃⡌⡘⢰⢉⣶⣿⣟⡷⣏⡾⣽⣳⢿⣿⡤⠑⣌⣻⠇⡀⠣⢎⢡⠃⡌⠒⡌⠳⢌⠮⣍⠳⣝⢦⡙⢢⡙⡘⣌⠳⣌⡳⣆⢏
 ⢡⠚⡰⢉⠧⣙⠤⠑⡊⠜⢢⠡⡐⢠⠁⢆⠘⠤⡑⠰⢠⠑⡊⣴⣿⡷⣯⢿⣽⣳⡽⣯⣿⢯⣷⢡⣾⣼⠃⡌⠱⢈⠢⠑⡌⢱⡌⠳⢌⡚⢥⠛⡌⢮⡙⣣⠝⡰⢃⠻⡜⣵⣩⠎
