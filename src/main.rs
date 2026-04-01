@@ -41,7 +41,7 @@ impl Buffer {
     }
 
     pub fn from_file(img: image::DynamicImage, w: u32, h: u32) -> Self {
-        let img = img.resize_exact(w, h, FilterType::Triangle).to_rgb8();
+        let img = img.resize_exact(w, h, FilterType::Triangle).into_rgb8();
         let (w, h) = img.dimensions();
 
         let mut buf = Self::new(w as usize, h as usize);
@@ -122,67 +122,84 @@ fn main() {
         return;
     }
 
-    if verbose {
-        println!("Resizing image from {} x {} to {} x {}", w, h, width, height);
-    }
-
     let (w, h) = buffer.dimensions();
-
-    let mut grid: BrailleCharGridVector<BrailleCharUnOrdered> = BrailleCharGridVector::new(w/2, h/4);
 
     let w_ = w/2*2;
     let h_ = h/4*4;
 
-    for y in 0..h_ {
-        for x in 0..w_ {
-            let oldpixel = buffer.get(x, y).clamp(Vec3::ZERO, Vec3::splat(255.0));
-
-            let (b, nl) = match oldpixel.element_sum() {
-                0.0..381.0 => (false, 0.0),
-                _ => (true, 255.0)
-            };
-            let newpixel = Vec3::splat(nl);
-
-            grid.set_unchecked(x, y, b);
-
-            let mut quant_error = oldpixel - newpixel;
-
-            quant_error /= 8.0;
-
-            let right = x + 1 < buffer.width;
-            let right2 = x + 2 < buffer.width;
-            let left = x > 0;
-            let down = y + 1 < buffer.height;
-            let down2 = y + 2 < buffer.height;
-
-            if right {
-                *buffer.get_mut(x+1, y) += quant_error;
-                if right2 {
-                    *buffer.get_mut(x+2, y) += quant_error;
-                }
-                if down {
-                    *buffer.get_mut(x+1, y+1) += quant_error;
-                }
-            }
-            if down {
-                *buffer.get_mut(x, y+1) += quant_error;
-                if left {
-                    *buffer.get_mut(x-1, y+1) += quant_error;
-                }
-                if down2 {
-                    *buffer.get_mut(x, y+2) += quant_error;
-                }
-            }
-        }
-    }
+    let mut array = vec![false; w_ * h_];
+    let mut grid: BrailleCharGridVector<BrailleCharUnOrdered> = BrailleCharGridVector::new(w/2, h/4);
 
     let mut out = String::with_capacity(h/4 * (w/2 + 1));
 
-    for row in grid.array.chunks_exact(w/2) {
-        for char in row {
+    for y_ in 0..(h/4) {
+        for y__ in 0..4 {
+            let y = y_ * 4 + y__;
+            for x in 0..w_ {
+                let oldpixel = buffer.get(x, y).clamp(Vec3::ZERO, Vec3::splat(255.0));
+
+                let (b, nl) = match oldpixel.element_sum() {
+                    0.0..381.0 => (false, 0.0),
+                    _ => (true, 255.0)
+                };
+                let newpixel = Vec3::splat(nl);
+
+                grid.set_unchecked(x, y, b);
+
+                array[x + y * w_] = b;
+
+                let mut quant_error = oldpixel - newpixel;
+
+                quant_error /= 8.0;
+
+                let right = x + 1 < buffer.width;
+                let right2 = x + 2 < buffer.width;
+                let left = x > 0;
+                let down = y + 1 < buffer.height;
+                let down2 = y + 2 < buffer.height;
+
+                if right {
+                    *buffer.get_mut(x+1, y) += quant_error;
+                    if right2 {
+                        *buffer.get_mut(x+2, y) += quant_error;
+                    }
+                    if down {
+                        *buffer.get_mut(x+1, y+1) += quant_error;
+                    }
+                }
+                if down {
+                    *buffer.get_mut(x, y+1) += quant_error;
+                    if left {
+                        *buffer.get_mut(x-1, y+1) += quant_error;
+                    }
+                    if down2 {
+                        *buffer.get_mut(x, y+2) += quant_error;
+                    }
+                }
+            }
+        }
+
+        for x in 0..(w/2) {
+            let arr = [
+                array[(2 * x) + 4 * y_ * w_],
+                array[(2 * x) + 1 + 4 * y_ * w_],
+                array[(2 * x) + (4 * y_ + 1) * w_],
+                array[(2 * x) + 1 + (4 * y_ + 1) * w_],
+                array[(2 * x) + (4 * y_ + 2) * w_],
+                array[(2 * x) + 1 + (4 * y_ + 2) * w_],
+                array[(2 * x) + (4 * y_ + 3) * w_],
+                array[(2 * x) + 1 + (4 * y_ + 3) * w_],
+            ];
+
+            let char = BrailleCharUnOrdered::from_array_unordered(arr);
+
             out.push(char.char());
         }
         out.push('\n');
+    }
+
+    if verbose {
+        out.push_str(&format!("The image was resized from {} x {} to {} x {}", w, h, width, height))
     }
 
     io::stdout().lock().write_all(out.as_bytes()).unwrap();
