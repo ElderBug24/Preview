@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use braille::BrailleCharUnOrdered;
 
 use glam::Vec3;
-use image::{imageops::FilterType, GenericImageView, SubImage, Rgb};
+use image::{imageops::FilterType, GenericImageView, SubImage, Rgb, Rgb32FImage};
 use owo_colors::OwoColorize;
 
 struct Buffer {
@@ -44,24 +44,20 @@ impl Buffer {
         return &mut self.data[y * self.width + x];
     }
 
-    pub fn from_file(img: image::DynamicImage) -> Self {
-        let img = img.into_rgb32f();
-
+    pub fn from_file(img: Rgb32FImage) -> Self {
         let (w, h) = img.dimensions();
         let (w, h) = (w as usize, h as usize);
 
-        let flat = img.as_flat_samples();
+        let flat = img.into_flat_samples();
         let bytes = flat.samples;
-        let mut data = unsafe { std::mem::transmute::<Vec<f32>, Vec<Vec3>>(bytes.to_vec()) };
+        let mut data = unsafe { std::mem::transmute::<Vec<f32>, Vec<Vec3>>(bytes) };
         unsafe { data.set_len(w * h) };
 
-        let buf = Self {
+        return Self {
             width: w,
             height: h,
             data: data
         };
-
-        return buf;
     }
 }
 
@@ -92,19 +88,11 @@ Usage: preview [OPTIONS]
 Options:
     -c, --color                       Colorize the image using ANSI escape codes
     -C, --color-only                  Colorize the image using ANSI escape codes, replacing all characters with ⣿
-    -b, --blur-color [VALUE]          Blurs the image's colors; value controls image flattening level
-    -B, --blur [VALUE]                Blurs the image; value controls image flattening level
     -h, --help                        Print this help message
     -v, --verbose                     Use verbose output
     [FILENAME]                        Specify input filename
     [WIDTH]x[HEIGHT]                  Specify output dimensions
     [WIDTH]                           Specify output width; height is scaled proportionally";
-
-enum ExpectedArgument {
-    None,
-    Blur,
-    BlurColor
-}
 
 fn main() {
     let args = env::args().skip(1);
@@ -114,48 +102,17 @@ fn main() {
 
     let mut path = None;
     let mut color = 0;
-    let mut blur = 0;
-    let mut blur_color = 0;
     let mut verbose = false;
     let mut help = false;
 
-    let mut expected = ExpectedArgument::None;
-
     for arg in args {
-        match expected {
-                ExpectedArgument::None => {
-                if let Some((a, b)) = arg.split_once('x') {
-                    match (a.parse::<u32>(), b.parse::<u32>()) {
-                        (Ok(w), Ok(h)) => {
-                            width = w;
-                            height = h;
-                        }
-                        _ => {
-                            let mut p = PathBuf::new();
-                            p.push(&arg);
-
-                            if p.is_file() {
-                                path = Some(p);
-                            } else {
-                                println!("Error: '{}' is invalid", arg);
-                            }
-                        },
-                    }
-                } else if let Ok(w) = arg.parse::<u32>() {
+        if let Some((a, b)) = arg.split_once('x') {
+            match (a.parse::<u32>(), b.parse::<u32>()) {
+                (Ok(w), Ok(h)) => {
                     width = w;
-                } else if arg == "-c" || arg == "--color" {
-                    color = 1;
-                } else if arg == "-C" || arg == "--color-only" {
-                    color = 2;
-                } else if arg == "-B" || arg == "--blur" {
-                    expected = ExpectedArgument::Blur;
-                } else if arg == "-b" || arg == "--blur-color" {
-                    expected = ExpectedArgument::BlurColor;
-                } else if arg == "-v" || arg == "--verbose" {
-                    verbose = true;
-                } else if arg == "-h" || arg == "--help" {
-                    help = true;
-                } else {
+                    height = h;
+                }
+                _ => {
                     let mut p = PathBuf::new();
                     p.push(&arg);
 
@@ -164,23 +121,28 @@ fn main() {
                     } else {
                         println!("Error: '{}' is invalid", arg);
                     }
-                }
-            },
-            ExpectedArgument::Blur => {
-                match arg.parse::<u8>() {
-                    Ok(sigma) => blur = sigma,
-                    Err(e) => eprintln!("{} {}", e, arg)
-                }
-                expected = ExpectedArgument::None;
-            },
-            ExpectedArgument::BlurColor => {
-                match arg.parse::<u8>() {
-                    Ok(sigma) => blur_color = sigma,
-                    Err(e) => eprintln!("{} {}", e, arg)
-                }
-                expected = ExpectedArgument::None;
+                },
             }
-        };
+        } else if let Ok(w) = arg.parse::<u32>() {
+            width = w;
+        } else if arg == "-c" || arg == "--color" {
+            color = 1;
+        } else if arg == "-C" || arg == "--color-only" {
+            color = 2;
+        } else if arg == "-v" || arg == "--verbose" {
+            verbose = true;
+        } else if arg == "-h" || arg == "--help" {
+            help = true;
+        } else {
+            let mut p = PathBuf::new();
+            p.push(&arg);
+
+            if p.is_file() {
+                path = Some(p);
+            } else {
+                println!("Error: '{}' is invalid", arg);
+            }
+        }
     }
 
     if help {
@@ -203,29 +165,21 @@ fn main() {
     let h_ = (height/4*4) as usize;
 
     img = img.resize_exact(w_ as u32, h_ as u32, FilterType::Nearest);
-    let mut img2 = img.clone();
 
-    if blur_color == 0 {
-        blur_color = blur;
-    }
-    if blur > 0 {
-        img = img.fast_blur(blur as f32);
-    }
-    if blur_color > 0 {
-        img2 = img2.fast_blur(blur_color as f32);
-    }
-    let img2 = img2.to_rgb8();
+    let img2 = img.to_rgb8();
 
     let mut out = String::with_capacity(h_/4 * (w_/2 + 1));
 
     if color != 2 {
-        let mut buffer = Buffer::from_file(img);
-        let mut array = vec![false; w_ * h_];
+        let mut buffer = Buffer::from_file(img.to_rgb32f());
 
-        for y_ in 0..(h_/4) {
-            for y__ in 0..4 {
-                let y = y_ * 4 + y__;
-                for x in 0..w_ {
+        for i in 0..(h_/4) {
+            for j in 0..(w_/2) {
+                let mut buf = [false; 8];
+                for k in 0..8 {
+                    let x = k % 2 + (8 * j + k) / 8 * 2;
+                    let y = i * 4 + ((8 * j + k) % 8) / 2;
+
                     let oldpixel = buffer.get(x, y).clamp(Vec3::ZERO, Vec3::splat(1.0));
 
                     let (b, nl) = match oldpixel.element_sum() {
@@ -233,7 +187,7 @@ fn main() {
                         _ => (true, 1.0)
                     };
 
-                    array[x + y * w_] = b;
+                    buf[k] = b;
 
                     let quant_error = (oldpixel - nl) / 8.0;
 
@@ -262,26 +216,13 @@ fn main() {
                         }
                     }
                 }
-            }
 
-            for x in 0..(w_/2) {
-                let arr = [
-                    array[(2 * x) + 4 * y_ * w_],
-                    array[(2 * x) + 1 + 4 * y_ * w_],
-                    array[(2 * x) + (4 * y_ + 1) * w_],
-                    array[(2 * x) + 1 + (4 * y_ + 1) * w_],
-                    array[(2 * x) + (4 * y_ + 2) * w_],
-                    array[(2 * x) + 1 + (4 * y_ + 2) * w_],
-                    array[(2 * x) + (4 * y_ + 3) * w_],
-                    array[(2 * x) + 1 + (4 * y_ + 3) * w_],
-                ];
-
-                let char = BrailleCharUnOrdered::from_array_unordered(arr);
+                let char = BrailleCharUnOrdered::from_array_unordered(&buf);
 
                 match color {
-                    0 => write!(out, "{}", char.char()).unwrap(),
+                    0 => out.push(char.char()),
                     1 => {
-                        let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
+                        let view = img2.view(j as u32 * 2, i as u32 * 4, 2, 4);
                         let (r, g, b) = average_color(&view);
 
                         write!(out, "{}", char.char().truecolor(r, g, b)).unwrap();
@@ -311,12 +252,6 @@ fn main() {
             }
         } else {
             write!(out, "The color from the image was rendered at a size of {} x {}", width, height).unwrap();
-        }
-        if blur > 0 {
-            write!(out, "\n + Blurring: {}", blur).unwrap();
-        }
-        if blur_color > 0 {
-            write!(out, "\n + Blurring color {}", blur_color).unwrap();
         }
     }
 
