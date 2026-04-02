@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::fmt::Write as Write_;
 use std::path::PathBuf;
 
-use braille::{BrailleCharUnOrdered, BrailleCharGridVector};
+use braille::BrailleCharUnOrdered;
 
 use glam::Vec3;
 use image::{imageops::FilterType, GenericImageView, SubImage, Rgb};
@@ -24,7 +24,8 @@ impl Buffer {
         };
     }
 
-    pub fn dimensions(&self) -> (usize, usize) {
+    #[inline]
+    pub fn _dimensions(&self) -> (usize, usize) {
         return (self.width, self.height);
     }
 
@@ -43,8 +44,8 @@ impl Buffer {
         return &mut self.data[y * self.width + x];
     }
 
-    pub fn from_file(img: image::DynamicImage, w: u32, h: u32) -> Self {
-        let img = img.resize_exact(w, h, FilterType::Triangle).into_rgb32f();
+    pub fn from_file(img: image::DynamicImage) -> Self {
+        let img = img.into_rgb32f();
 
         let (w, h) = img.dimensions();
         let (w, h) = (w as usize, h as usize);
@@ -198,7 +199,11 @@ fn main() {
         height = h * width / w;
     }
 
-    let mut img2 = img.resize_exact(width, height, FilterType::Nearest);
+    let w_ = (width/2*2) as usize;
+    let h_ = (height/4*4) as usize;
+
+    img = img.resize_exact(w_ as u32, h_ as u32, FilterType::Nearest);
+    let mut img2 = img.clone();
 
     if blur_color == 0 {
         blur_color = blur;
@@ -211,94 +216,91 @@ fn main() {
     }
     let img2 = img2.to_rgb8();
 
-    let mut buffer = Buffer::from_file(img, width, height);
+    let mut out = String::with_capacity(h_/4 * (w_/2 + 1));
 
-    let (w, h) = buffer.dimensions();
+    if color != 2 {
+        let mut buffer = Buffer::from_file(img);
+        let mut array = vec![false; w_ * h_];
 
-    let w_ = w/2*2;
-    let h_ = h/4*4;
+        for y_ in 0..(h_/4) {
+            for y__ in 0..4 {
+                let y = y_ * 4 + y__;
+                for x in 0..w_ {
+                    let oldpixel = buffer.get(x, y).clamp(Vec3::ZERO, Vec3::splat(1.0));
 
-    let mut array = vec![false; w_ * h_];
-    let mut grid: BrailleCharGridVector<BrailleCharUnOrdered> = BrailleCharGridVector::new(w/2, h/4);
+                    let (b, nl) = match oldpixel.element_sum() {
+                        0.0..1.5 => (false, 0.0),
+                        _ => (true, 1.0)
+                    };
 
-    let mut out = String::with_capacity(h/4 * (w/2 + 1));
+                    array[x + y * w_] = b;
 
-    for y_ in 0..(h/4) {
-        for y__ in 0..4 {
-            let y = y_ * 4 + y__;
-            for x in 0..w_ {
-                let oldpixel = buffer.get(x, y).clamp(Vec3::ZERO, Vec3::splat(1.0));
+                    let quant_error = (oldpixel - nl) / 8.0;
 
-                let (b, nl) = match oldpixel.element_sum() {
-                    0.0..1.5 => (false, 0.0),
-                    _ => (true, 1.0)
-                };
+                    let right = x + 1 < buffer.width;
+                    let right2 = x + 2 < buffer.width;
+                    let left = x > 0;
+                    let down = y + 1 < buffer.height;
+                    let down2 = y + 2 < buffer.height;
 
-                grid.set_unchecked(x, y, b);
-
-                array[x + y * w_] = b;
-
-                let quant_error = (oldpixel - nl) / 8.0;
-
-                let right = x + 1 < buffer.width;
-                let right2 = x + 2 < buffer.width;
-                let left = x > 0;
-                let down = y + 1 < buffer.height;
-                let down2 = y + 2 < buffer.height;
-
-                if right {
-                    *buffer.get_mut(x+1, y) += quant_error;
-                    if right2 {
-                        *buffer.get_mut(x+2, y) += quant_error;
+                    if right {
+                        *buffer.get_mut(x+1, y) += quant_error;
+                        if right2 {
+                            *buffer.get_mut(x+2, y) += quant_error;
+                        }
+                        if down {
+                            *buffer.get_mut(x+1, y+1) += quant_error;
+                        }
                     }
                     if down {
-                        *buffer.get_mut(x+1, y+1) += quant_error;
-                    }
-                }
-                if down {
-                    *buffer.get_mut(x, y+1) += quant_error;
-                    if left {
-                        *buffer.get_mut(x-1, y+1) += quant_error;
-                    }
-                    if down2 {
-                        *buffer.get_mut(x, y+2) += quant_error;
+                        *buffer.get_mut(x, y+1) += quant_error;
+                        if left {
+                            *buffer.get_mut(x-1, y+1) += quant_error;
+                        }
+                        if down2 {
+                            *buffer.get_mut(x, y+2) += quant_error;
+                        }
                     }
                 }
             }
-        }
 
-        for x in 0..(w/2) {
-            let arr = [
-                array[(2 * x) + 4 * y_ * w_],
-                array[(2 * x) + 1 + 4 * y_ * w_],
-                array[(2 * x) + (4 * y_ + 1) * w_],
-                array[(2 * x) + 1 + (4 * y_ + 1) * w_],
-                array[(2 * x) + (4 * y_ + 2) * w_],
-                array[(2 * x) + 1 + (4 * y_ + 2) * w_],
-                array[(2 * x) + (4 * y_ + 3) * w_],
-                array[(2 * x) + 1 + (4 * y_ + 3) * w_],
-            ];
+            for x in 0..(w_/2) {
+                let arr = [
+                    array[(2 * x) + 4 * y_ * w_],
+                    array[(2 * x) + 1 + 4 * y_ * w_],
+                    array[(2 * x) + (4 * y_ + 1) * w_],
+                    array[(2 * x) + 1 + (4 * y_ + 1) * w_],
+                    array[(2 * x) + (4 * y_ + 2) * w_],
+                    array[(2 * x) + 1 + (4 * y_ + 2) * w_],
+                    array[(2 * x) + (4 * y_ + 3) * w_],
+                    array[(2 * x) + 1 + (4 * y_ + 3) * w_],
+                ];
 
-            let char = BrailleCharUnOrdered::from_array_unordered(arr);
+                let char = BrailleCharUnOrdered::from_array_unordered(arr);
 
-            match color {
-                0 => write!(out, "{}", char.char()).unwrap(),
-                1 => {
-                    let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
-                    let (r, g, b) = average_color(&view);
+                match color {
+                    0 => write!(out, "{}", char.char()).unwrap(),
+                    1 => {
+                        let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
+                        let (r, g, b) = average_color(&view);
 
-                    write!(out, "{}", char.char().truecolor(r, g, b)).unwrap();
-                },
-                2 => {
-                    let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
-                    let (r, g, b) = average_color(&view);
-
-                    write!(out, "{}", BrailleCharUnOrdered::FULL.char().truecolor(r, g, b)).unwrap();
-                },
-                _ => unreachable!()
+                        write!(out, "{}", char.char().truecolor(r, g, b)).unwrap();
+                    },
+                    _ => unreachable!()
+                }
             }
+            out.push('\n');
         }
-        out.push('\n');
+    } else {
+        for y_ in 0..(h_/4) {
+            for x in 0..(w_/2) {
+                let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
+                let (r, g, b) = average_color(&view);
+
+                write!(out, "{}", BrailleCharUnOrdered::FULL.char().truecolor(r, g, b)).unwrap();
+            }
+            out.push('\n');
+        }
     }
 
     if verbose {

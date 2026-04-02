@@ -3,6 +3,23 @@ name = "preview"
 version = "0.1.0"
 edition = "2024"
 
+[profile.deploy]
+inherits = "release"
+debug = 2
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = true
+
+[profile.fast]
+inherits = "dev"
+opt-level = 0
+debug = 0
+incremental = true
+codegen-units = 256
+lto = false
+
 [dependencies]
 braille = { path = "../braille/" }
 glam = "0.32.1"
