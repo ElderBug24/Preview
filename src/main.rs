@@ -7,7 +7,7 @@ use braille::BrailleCharUnOrdered;
 
 use glam::Vec3;
 use image::{imageops::FilterType, GenericImageView, SubImage, Rgb, Rgb32FImage};
-use owo_colors::OwoColorize;
+
 
 struct Buffer {
     pub width: usize,
@@ -16,27 +16,9 @@ struct Buffer {
 }
 
 impl Buffer {
-    pub fn _new(width: usize, height: usize) -> Self {
-        return Self {
-            width: width,
-            height: height,
-            data: vec![Vec3::ZERO; width * height]
-        };
-    }
-
-    #[inline]
-    pub fn _dimensions(&self) -> (usize, usize) {
-        return (self.width, self.height);
-    }
-
     #[inline]
     pub fn get(&self, x: usize, y: usize) -> Vec3 {
         return self.data[y * self.width + x];
-    }
-
-    #[inline]
-    pub fn _set(&mut self, x: usize, y: usize, value: Vec3) {
-        self.data[y * self.width + x] = value;
     }
 
     #[inline]
@@ -44,6 +26,7 @@ impl Buffer {
         return &mut self.data[y * self.width + x];
     }
 
+    #[inline]
     pub fn from_file(img: Rgb32FImage) -> Self {
         let (w, h) = img.dimensions();
         let (w, h) = (w as usize, h as usize);
@@ -178,9 +161,9 @@ fn main() {
                 let mut buf = [false; 8];
                 for k in 0..8 {
                     let x = k % 2 + (8 * j + k) / 8 * 2;
-                    let y = i * 4 + ((8 * j + k) % 8) / 2;
+                    let y = i * 4 + (8 * j + k) % 8 / 2;
 
-                    let oldpixel = buffer.get(x, y).clamp(Vec3::ZERO, Vec3::splat(1.0));
+                    let oldpixel = buffer.get(x, y).saturate();
 
                     let (b, nl) = match oldpixel.element_sum() {
                         0.0..1.5 => (false, 0.0),
@@ -225,7 +208,7 @@ fn main() {
                         let view = img2.view(j as u32 * 2, i as u32 * 4, 2, 4);
                         let (r, g, b) = average_color(&view);
 
-                        write!(out, "{}", char.char().truecolor(r, g, b)).unwrap();
+                        write!(out, "\x1b[38;2;{};{};{}m{}", r, g, b, char.char()).unwrap();
                     },
                     _ => unreachable!()
                 }
@@ -238,20 +221,20 @@ fn main() {
                 let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
                 let (r, g, b) = average_color(&view);
 
-                write!(out, "{}", BrailleCharUnOrdered::FULL.char().truecolor(r, g, b)).unwrap();
+                // const CHAR: char = unsafe { char::from_u32_unchecked(0x2588) };
+                // const FULL: char = BrailleCharUnOrdered::FULL.char();
+                write!(out, "\x1b[48;2;{};{};{}m{}", r, g, b, ' ').unwrap();
             }
-            out.push('\n');
+            out.push_str("\x1b[0m\n");
         }
     }
 
     if verbose {
-        if color < 2 {
-            write!(out, "Resizing from {} x {} to {} x {}", w, h, width, height).unwrap();
-            if color > 0 {
-                out.push_str("\n + Coloring");
-            }
-        } else {
-            write!(out, "The color from the image was rendered at a size of {} x {}", width, height).unwrap();
+        write!(out, "Resized image from {}x{} to {}x{}", w, h, width, height).unwrap();
+        match color {
+            1 => out.push_str(" (color)"),
+            2 => out.push_str(" (color-only)"),
+            _ => {}
         }
     }
 
