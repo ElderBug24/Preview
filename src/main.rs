@@ -3,10 +3,10 @@ use std::io::{self, Write};
 use std::fmt::Write as Write_;
 use std::path::PathBuf;
 
-use braille::BrailleCharUnOrdered;
+use braille::{BrailleChar, MASK_UNORDERED_TO_ORDERED};
 
 use glam::Vec3;
-use image::{imageops::FilterType, GenericImageView, SubImage, Rgb, Rgb32FImage};
+use image::{imageops::FilterType, GenericImageView, SubImage, Rgb, Rgb32FImage, ImageResult};
 
 
 struct Buffer {
@@ -134,26 +134,39 @@ fn main() {
         return;
     }
 
-    let mut img = image::open(&path.expect("Error: Missing input file")).expect("Error: Could not open file");
+    let mut img = match path {
+        Some(path) => match image::open(&path) {
+            ImageResult::Ok(img) => img,
+            ImageResult::Err(error) => {
+                println!("Error: {}", error);
+
+                return;
+            }
+        },
+        None => {
+            println!("Error: Missing input file");
+
+            return;
+        }
+    };
     let (w, h) = img.dimensions();
 
     if height == 0 {
         if width == 0 {
-            width = 160;
+            width = 80;
         }
-        height = h * width / w;
+        height = width * h / w;
     }
 
-    let w_ = (width/2*2) as usize;
-    let h_ = (height/4*4) as usize;
-
-    img = img.resize_exact(w_ as u32, h_ as u32, FilterType::Nearest);
-
-    let img2 = img.to_rgb8();
-
-    let mut out = String::with_capacity(h_/4 * (w_/2 + 1));
+    let mut out = String::with_capacity((height / 2 * (width + 1)) as usize);
 
     if color != 2 {
+        let w_ = (width * 2) as usize;
+        let h_ = (height * 2) as usize;
+
+        img = img.resize_exact(w_ as u32, h_ as u32, FilterType::Nearest);
+        let img2 = img.to_rgb8();
+
         let mut buffer = Buffer::from_file(img.to_rgb32f());
 
         for i in 0..(h_/4) {
@@ -170,7 +183,8 @@ fn main() {
                         _ => (true, 1.0)
                     };
 
-                    buf[k] = b;
+                    let index = MASK_UNORDERED_TO_ORDERED[k] as usize;
+                    buf[index] = b;
 
                     let quant_error = (oldpixel - nl) / 8.0;
 
@@ -200,7 +214,7 @@ fn main() {
                     }
                 }
 
-                let char = BrailleCharUnOrdered::from_array_unordered(&buf);
+                let char = BrailleChar::from_array_ordered(&buf);
 
                 match color {
                     0 => out.push(char.char()),
@@ -216,13 +230,12 @@ fn main() {
             out.push('\n');
         }
     } else {
-        for y_ in 0..(h_/4) {
-            for x in 0..(w_/2) {
-                let view = img2.view(x as u32 * 2, y_ as u32 * 4, 2, 4);
-                let (r, g, b) = average_color(&view);
+        let img = img.resize_exact(width as u32, height as u32 / 2, FilterType::Triangle).into_rgb8();
 
-                // const CHAR: char = unsafe { char::from_u32_unchecked(0x2588) };
-                // const FULL: char = BrailleCharUnOrdered::FULL.char();
+        for y in 0..(height / 2) {
+            for x in 0..width {
+                let [r, g, b] = img.get_pixel(x as u32, y as u32).0;
+
                 write!(out, "\x1b[48;2;{};{};{}m{}", r, g, b, ' ').unwrap();
             }
             out.push_str("\x1b[0m\n");
