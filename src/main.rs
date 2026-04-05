@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::fmt::Write as Write_;
 use std::path::PathBuf;
 
-use braille::{BrailleChar, MASK_UNORDERED_TO_ORDERED};
+use braille::BrailleChar;
 
 use glam::Vec3;
 use image::{imageops::FilterType, GenericImageView, SubImage, Rgb, Rgb32FImage, ImageResult};
@@ -183,8 +183,7 @@ fn main() {
                         _ => (true, 1.0)
                     };
 
-                    let index = MASK_UNORDERED_TO_ORDERED[k] as usize;
-                    buf[index] = b;
+                    buf[k] = b;
 
                     let quant_error = (oldpixel - nl) / 8.0;
 
@@ -214,20 +213,17 @@ fn main() {
                     }
                 }
 
-                let char = BrailleChar::from_array_ordered(&buf);
+                let char = BrailleChar::from_array_unordered(&buf);
 
-                match color {
-                    0 => out.push(char.char()),
-                    1 => {
-                        let view = img2.view(j as u32 * 2, i as u32 * 4, 2, 4);
-                        let (r, g, b) = average_color(&view);
+                if color != 0 {
+                    let view = img2.view(j as u32 * 2, i as u32 * 4, 2, 4);
+                    let (r, g, b) = average_color(&view);
 
-                        write!(out, "\x1b[38;2;{};{};{}m{}", r, g, b, char.char()).unwrap();
-                    },
-                    _ => unreachable!()
+                    write!(out, "\x1b[38;2;{};{};{}m", r, g, b).unwrap()
                 }
+                out.push(char.char());
             }
-            out.push('\n');
+            out.push_str("\x1b[0m\n");
         }
     } else {
         let img = img.resize_exact(width as u32, height as u32 / 2, FilterType::Triangle).into_rgb8();
