@@ -7,6 +7,7 @@ use braille::BrailleChar;
 
 use glam::Vec3;
 use image::{imageops::FilterType, GenericImageView, SubImage, Rgb, Rgb32FImage, ImageResult};
+use crossterm::terminal;
 
 
 struct Buffer {
@@ -151,6 +152,19 @@ fn main() {
     };
     let (w, h) = img.dimensions();
 
+    if width == 0 && height == 0 {
+        if let Ok((cols, rows)) = terminal::size() {
+            let rows = (rows - 2) * 2;
+
+            if (rows as i32) - (h as i32) < (cols as i32) - (w as i32) {
+                height = rows as u32;
+                width = height * w / h;
+            } else {
+                width = cols as u32;
+                height = width * h / w;
+            }
+        }
+    }
     if height == 0 {
         if width == 0 {
             width = 80;
