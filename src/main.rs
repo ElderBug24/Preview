@@ -93,8 +93,8 @@ fn main() {
         if let Some((a, b)) = arg.split_once('x') {
             match (a.parse::<u32>(), b.parse::<u32>()) {
                 (Ok(w), Ok(h)) => {
-                    width = w;
-                    height = h;
+                    width = w as usize;
+                    height = h as usize;
                 }
                 _ => {
                     let mut p = PathBuf::new();
@@ -108,7 +108,7 @@ fn main() {
                 },
             }
         } else if let Ok(w) = arg.parse::<u32>() {
-            width = w;
+            width = w as usize;
         } else if arg == "-c" || arg == "--color" {
             color = 1;
         } else if arg == "-C" || arg == "--color-only" {
@@ -151,16 +151,17 @@ fn main() {
         }
     };
     let (w, h) = img.dimensions();
+    let (w, h) = (w as usize, h as usize);
 
     if width == 0 && height == 0 {
         if let Ok((cols, rows)) = terminal::size() {
             let rows = (rows - 2) * 2;
 
             if (rows as i32) - (h as i32) < (cols as i32) - (w as i32) {
-                height = rows as u32;
+                height = rows as usize;
                 width = height * w / h;
             } else {
-                width = cols as u32;
+                width = cols as usize;
                 height = width * h / w;
             }
         }
@@ -172,23 +173,23 @@ fn main() {
         height = width * h / w;
     }
 
-    let mut out = String::with_capacity((height / 2 * (width + 1)) as usize);
+    let mut out = String::with_capacity(height / 2 * (width + 1));
 
     if color != 2 {
-        let w_ = (width * 2) as usize;
-        let h_ = (height * 2) as usize;
+        let w_ = width * 2;
+        let h_ = height * 2;
 
         img = img.resize_exact(w_ as u32, h_ as u32, FilterType::Nearest);
         let img2 = img.to_rgb8();
 
         let mut buffer = Buffer::from_file(img.to_rgb32f());
 
-        for i in 0..(h_/4) {
-            for j in 0..(w_/2) {
+        for y_ in 0..(height / 2) {
+            for x_ in 0..width {
                 let mut buf = [false; 8];
                 for k in 0..8 {
-                    let x = k % 2 + (8 * j + k) / 8 * 2;
-                    let y = i * 4 + (8 * j + k) % 8 / 2;
+                    let x = x_ * 2 + k % 2;
+                    let y = y_ * 4 + k / 2;
 
                     let oldpixel = buffer.get(x, y).saturate();
 
@@ -230,7 +231,7 @@ fn main() {
                 let char = BrailleChar::from_array_unordered(&buf);
 
                 if color != 0 {
-                    let view = img2.view(j as u32 * 2, i as u32 * 4, 2, 4);
+                    let view = img2.view(x_ as u32 * 2, y_ as u32 * 4, 2, 4);
                     let (r, g, b) = average_color(&view);
 
                     write!(out, "\x1b[38;2;{};{};{}m", r, g, b).unwrap()

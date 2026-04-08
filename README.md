@@ -1,5 +1,6 @@
 # Preview
 This tool preview any image using braille characters and Floyd–Steinberg dithering (https://en.wikipedia.org/wiki/Floyd–Steinberg_dithering).
+It can display color using ANSI escape characters.
 It depends on my braille crate (https://github.com/ElderBug24/Braille). This crate requires the braille folder to be placed in the parent folder of this repository.
 Here is the help menu:
 
@@ -9,8 +10,6 @@ Options:
 
     -c, --color                       Colorize the image using ANSI escape codes
     -C, --color-only                  Colorize the image using ANSI escape codes, replacing all characters with ⣿
-    -b, --blur-color [VALUE]          Blurs the image's colors; value controls image flattening level
-    -B, --blur [VALUE]                Blurs the image; value controls image flattening level
     -h, --help                        Print this help message
     -v, --verbose                     Use verbose output
     [FILENAME]                        Specify input filename
@@ -20,6 +19,8 @@ Options:
 Here are example outputs:
 
 ![Alt text](./bunny.jpg?raw=true)
+
+![Alt text](./screenshot.jpg?raw=true)
 
 ⠐⣂⠶⣑⠲⡜⡖⡓⢎⡔⢂⡒⡀⠆⢚⠤⡒⡔⢢⠐⣄⠒⠆⡆⠰⢠⣶⣿⣳⣏⡾⣿⣷⣄⠢⡐⢠⠞⣇⠠⠀⢄⡰⢲⢘⠲⢌⠲⣀⢒⡐⢢⡘⢤⡃⠆⡘⠖⡄⠳⣄⠲⣰⢂
 ⢳⡌⣶⣡⠛⡜⢆⡩⢂⠜⢢⠑⡌⡘⠌⠶⡑⡜⡠⠃⡌⡘⢰⢉⣶⣿⣟⡷⣏⡾⣽⣳⢿⣿⡤⠑⣌⣻⠇⡀⠣⢎⢡⠃⡌⠒⡌⠳⢌⠮⣍⠳⣝⢦⡙⢢⡙⡘⣌⠳⣌⡳⣆⢏
@@ -87,4 +88,6 @@ Here are example outputs:
 ⡳⣥⢋⠶⣙⢮⡱⣎⠵⣎⢳⢬⢳⡹⣔⢣⡞⣱⢳⣻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⣽⡿⣽⢯⣟⣯⢷⣫⢗⡯⢞⡭⣚⠷
 ⣳⢣⢯⣙⢞⡲⣓⢮⢽⣘⠧⡞⣥⠳⣌⡳⡜⢧⡻⣜⢯⡿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣾⣿⢿⣿⣽⣯⣟⡾⣽⢻⣼⢫⡞⣽⢲⡍⣞
 ⢧⣛⢮⡝⣎⢷⡹⣎⢧⢯⣙⡞⡴⣋⠶⡱⢭⢳⡱⢏⡾⣹⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣾⣯⢿⡽⣞⡯⣞⣻⣼⢣⡟⡼⣘
+
+![Alt text](./screenshot2.jpg?raw=true)
 
